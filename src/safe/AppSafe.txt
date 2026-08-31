@@ -1,0 +1,3501 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MiniMap,
+  Handle,
+  Position,
+  useNodesState,
+  useEdgesState,
+  BezierEdge,
+} from "@xyflow/react";
+
+import dagre from "@dagrejs/dagre";
+import {
+  Plus,
+  TreePine,
+  MoreVertical,
+  UserRound,
+  X,
+  LoaderCircle,
+  Link2,
+  WandSparkles,
+  Info,
+  Pencil,
+  Trash2,
+  Heart,
+  UsersRound,
+  Download,
+  GitBranch,
+  ChevronRight,
+  CircleHelp,
+  Menu,
+} from "lucide-react";
+
+import RelationshipModal from "./components/RelationshipModal";
+import FamilySidebar from "./components/FamilySidebar";
+import Register from "./pages/Register";
+
+import { supabase } from "./lib/supabase";
+
+import "@xyflow/react/dist/style.css";
+import Login from "./pages/Login";
+
+/* ======================================================
+   CONSTANTS
+====================================================== */
+
+const NODE_WIDTH = 208;
+const NODE_HEIGHT = 130;
+
+/* ======================================================
+   CUSTOM FAMILY NODE
+====================================================== */
+
+function FamilyNode({ data, selected }) {
+  const [showMenu, setShowMenu] = useState(false);
+
+  const gender = data.gender || "unknown";
+
+  const genderColor =
+    gender === "female"
+      ? "text-pink-500"
+      : gender === "male"
+        ? "text-blue-500"
+        : "text-slate-500";
+
+  const avatarBackground =
+    gender === "female"
+      ? "bg-pink-50"
+      : gender === "male"
+        ? "bg-blue-50"
+        : "bg-slate-100";
+
+  return (
+    <div
+      className={`
+        relative w-52 rounded-2xl border bg-white p-4
+        transition-all duration-200
+        ${
+          selected
+            ? "border-blue-500 shadow-2xl ring-4 ring-blue-500/20"
+            : "border-slate-200 shadow-lg hover:-translate-y-1 hover:shadow-xl"
+        }
+      `}
+    >
+      {/* TOP HANDLE */}
+
+      <Handle
+        type="target"
+        position={Position.Top}
+        className={`
+          !h-2 !w-2 !border-2 !border-white
+          ${selected ? "!bg-blue-500" : "!bg-slate-400"}
+        `}
+      />
+
+      {/* INFO */}
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+
+          setShowMenu(false);
+
+          data.onInfo?.(data.person);
+        }}
+        className={`
+          absolute left-2 top-2 rounded-lg p-1.5
+          transition
+          ${
+            selected
+              ? "text-blue-500 hover:bg-blue-50"
+              : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+          }
+        `}
+        title="View information"
+      >
+        <Info size={16} />
+      </button>
+
+      {/* THREE DOT MENU */}
+
+      <div className="absolute right-2 top-2">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+
+            setShowMenu((current) => !current);
+          }}
+          className="
+            rounded-lg
+            p-1.5
+            text-slate-400
+            transition
+            hover:bg-slate-100
+            hover:text-slate-700
+          "
+          title="More options"
+        >
+          <MoreVertical size={17} />
+        </button>
+
+        {showMenu && (
+          <div
+            className="
+              absolute right-0 top-9 z-50
+              w-36
+              overflow-hidden
+              rounded-xl
+              border border-slate-200
+              bg-white
+              p-1
+              shadow-xl
+            "
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+
+                data.onEdit?.(data.person);
+              }}
+              className="
+                flex w-full
+                items-center gap-2
+                rounded-lg
+                px-3 py-2
+                text-left text-sm
+                text-slate-700
+                transition
+                hover:bg-slate-100
+              "
+            >
+              <Pencil size={15} />
+              Edit
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowMenu(false);
+
+                data.onDelete?.(data.person);
+              }}
+              className="
+                flex w-full
+                items-center gap-2
+                rounded-lg
+                px-3 py-2
+                text-left text-sm
+                text-red-600
+                transition
+                hover:bg-red-50
+              "
+            >
+              <Trash2 size={15} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* AVATAR */}
+
+      <div
+        className={`
+          mx-auto mb-3 flex h-14 w-14
+          items-center justify-center
+          rounded-full
+          ${avatarBackground}
+          ${genderColor}
+          transition-all duration-200
+          ${selected ? "shadow-lg ring-2 ring-blue-100" : ""}
+        `}
+      >
+        <UserRound size={27} />
+      </div>
+
+      {/* NAME */}
+
+      <div className="text-center">
+        <h3
+          className={`
+            truncate font-semibold
+            ${selected ? "text-blue-700" : "text-slate-800"}
+          `}
+        >
+          {data.name}
+        </h3>
+
+        {gender !== "unknown" && (
+          <p
+            className={`
+              mt-1 text-xs capitalize
+              ${selected ? "text-blue-400" : genderColor}
+            `}
+          >
+            {gender}
+          </p>
+        )}
+      </div>
+
+      {/* SELECTED */}
+
+      {selected && (
+        <div className="mt-3 text-center">
+          <span
+            className="
+              rounded-full
+              bg-blue-50
+              px-3 py-1
+              text-[10px]
+              font-semibold
+              text-blue-600
+            "
+          >
+            Selected
+          </span>
+        </div>
+      )}
+
+      {/* BOTTOM HANDLE */}
+
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className={`
+          !h-2 !w-2 !border-2 !border-white
+          ${selected ? "!bg-blue-500" : "!bg-slate-400"}
+        `}
+      />
+    </div>
+  );
+}
+
+/* ======================================================
+   NODE TYPES
+====================================================== */
+
+const nodeTypes = {
+  familyMember: FamilyNode,
+};
+
+/* ======================================================
+   EDGE TYPES
+====================================================== */
+
+const edgeTypes = {
+  bezier: BezierEdge,
+};
+
+/* ======================================================
+   FAMILY TREE LAYOUT
+====================================================== */
+
+const getLayoutedElements = (nodes, edges) => {
+  if (!nodes.length) {
+    return {
+      nodes,
+      edges,
+    };
+  }
+
+  const dagreGraph = new dagre.graphlib.Graph();
+
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+
+  /*
+   * IMPORTANT:
+   *
+   * Dagre only uses parent → child relationships
+   * for the hierarchy.
+   *
+   * Spouse relationships are handled separately
+   * after the main hierarchy is calculated.
+   */
+  dagreGraph.setGraph({
+    rankdir: "TB",
+
+    /*
+     * Vertical distance between generations.
+     */
+    ranksep: 180,
+
+    /*
+     * Horizontal distance between family members
+     * in the same generation.
+     */
+    nodesep: 150,
+
+    edgesep: 80,
+
+    marginx: 120,
+    marginy: 120,
+  });
+
+  /*
+   * Tell Dagre the REAL size of every React Flow node.
+   */
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, {
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    });
+  });
+
+  /*
+   * --------------------------------------------------
+   * PARENT → CHILD RELATIONSHIPS
+   * --------------------------------------------------
+   */
+
+  edges.forEach((edge) => {
+    if (edge.data?.relationshipType === "parent") {
+      dagreGraph.setEdge(edge.source, edge.target);
+    }
+  });
+
+  /*
+   * Calculate the main family hierarchy.
+   */
+  dagre.layout(dagreGraph);
+
+  /*
+   * --------------------------------------------------
+   * INITIAL POSITIONS
+   * --------------------------------------------------
+   */
+
+  let layoutedNodes = nodes.map((node) => {
+    const position = dagreGraph.node(node.id);
+
+    if (!position) {
+      return {
+        ...node,
+      };
+    }
+
+    return {
+      ...node,
+
+      position: {
+        x: position.x - NODE_WIDTH / 2,
+        y: position.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
+
+  /*
+   * --------------------------------------------------
+   * SPOUSE RELATIONSHIPS
+   * --------------------------------------------------
+   *
+   * Keep spouses close, but DON'T blindly place them
+   * at ±135 because that can put them on top of another
+   * family member.
+   */
+
+  const spouseEdges = edges.filter(
+    (edge) => edge.data?.relationshipType === "spouse",
+  );
+
+  const SPOUSE_GAP = 60;
+
+  spouseEdges.forEach((edge) => {
+    const first = layoutedNodes.find((node) => node.id === edge.source);
+
+    const second = layoutedNodes.find((node) => node.id === edge.target);
+
+    if (!first || !second) return;
+
+    /*
+     * Only force spouses together when Dagre already
+     * placed them in approximately the same generation.
+     */
+    const sameLevel = Math.abs(first.position.y - second.position.y) < 80;
+
+    if (!sameLevel) {
+      return;
+    }
+
+    const centerX = (first.position.x + second.position.x) / 2;
+
+    /*
+     * Keep the two cards next to each other.
+     */
+    first.position.x = centerX - NODE_WIDTH - SPOUSE_GAP / 2;
+
+    second.position.x = centerX + SPOUSE_GAP / 2;
+
+    /*
+     * Keep them on exactly the same generation.
+     */
+    const averageY = (first.position.y + second.position.y) / 2;
+
+    first.position.y = averageY;
+    second.position.y = averageY;
+  });
+
+  /*
+   * --------------------------------------------------
+   * COLLISION PREVENTION
+   * --------------------------------------------------
+   *
+   * Dagre doesn't know that we manually moved spouses.
+   *
+   * So after moving spouses, we check every generation
+   * and make sure cards cannot overlap.
+   */
+
+  const MIN_HORIZONTAL_GAP = 70;
+  const MIN_VERTICAL_GAP = 80;
+
+  /*
+   * Group nodes by their vertical level.
+   */
+  const levels = [];
+
+  layoutedNodes.forEach((node) => {
+    let level = levels.find(
+      (group) => Math.abs(group.y - node.position.y) < MIN_VERTICAL_GAP,
+    );
+
+    if (!level) {
+      level = {
+        y: node.position.y,
+        nodes: [],
+      };
+
+      levels.push(level);
+    }
+
+    level.nodes.push(node);
+  });
+
+  /*
+   * Process each generation separately.
+   */
+  levels.forEach((level) => {
+    /*
+     * Sort from left → right.
+     */
+    level.nodes.sort((a, b) => a.position.x - b.position.x);
+
+    for (let i = 1; i < level.nodes.length; i++) {
+      const previous = level.nodes[i - 1];
+      const current = level.nodes[i];
+
+      const previousRight = previous.position.x + NODE_WIDTH;
+
+      const requiredX = previousRight + MIN_HORIZONTAL_GAP;
+
+      /*
+       * If two cards overlap or are too close,
+       * move the current card to the right.
+       */
+      if (current.position.x < requiredX) {
+        current.position.x = requiredX;
+      }
+    }
+
+    /*
+     * --------------------------------------------------
+     * CENTER THE GENERATION
+     * --------------------------------------------------
+     *
+     * This prevents every generation from becoming
+     * unnecessarily shifted to the right.
+     */
+
+    if (level.nodes.length > 0) {
+      const left = level.nodes[0].position.x;
+
+      const right = level.nodes[level.nodes.length - 1].position.x + NODE_WIDTH;
+
+      const center = (left + right) / 2;
+
+      level.nodes.forEach((node) => {
+        node.position.x -= center;
+      });
+    }
+  });
+
+  /*
+   * --------------------------------------------------
+   * FINAL VERTICAL SAFETY
+   * --------------------------------------------------
+   *
+   * Make sure generations have enough vertical space.
+   */
+
+  levels.sort((a, b) => a.y - b.y);
+
+  for (let i = 1; i < levels.length; i++) {
+    const previousLevel = levels[i - 1];
+    const currentLevel = levels[i];
+
+    const previousBottom = Math.max(
+      ...previousLevel.nodes.map((node) => node.position.y + NODE_HEIGHT),
+    );
+
+    const minimumY = previousBottom + MIN_VERTICAL_GAP;
+
+    if (currentLevel.y < minimumY) {
+      const difference = minimumY - currentLevel.y;
+
+      currentLevel.nodes.forEach((node) => {
+        node.position.y += difference;
+      });
+
+      currentLevel.y += difference;
+    }
+  }
+
+  return {
+    nodes: layoutedNodes,
+    edges,
+  };
+};
+
+/* ======================================================
+   APP
+====================================================== */
+
+function App() {
+  /* ====================================================
+     AUTHENTICATION
+  ==================================================== */
+
+  const [authPage, setAuthPage] = useState("login");
+
+  const [user, setUser] = useState(null);
+
+  const [authLoading, setAuthLoading] = useState(true);
+
+  /* ====================================================
+     SIDEBAR
+  ==================================================== */
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  /* ====================================================
+     SEARCH
+  ==================================================== */
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [activeSidebarTab, setActiveSidebarTab] = useState("people");
+
+  /* ====================================================
+     TREE
+  ==================================================== */
+
+  const [treeId, setTreeId] = useState(null);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+  /* ====================================================
+     SELECTION
+  ==================================================== */
+
+  const [selectedPerson, setSelectedPerson] = useState(null);
+
+  const [infoPerson, setInfoPerson] = useState(null);
+
+  const [detailsTab, setDetailsTab] = useState("details");
+
+  /* ====================================================
+     MODALS
+  ==================================================== */
+
+  const [showRelationshipModal, setShowRelationshipModal] = useState(false);
+
+  const [showAddPerson, setShowAddPerson] = useState(false);
+
+  const [showEditPerson, setShowEditPerson] = useState(false);
+
+  const [showTreeInfo, setShowTreeInfo] = useState(false);
+
+  /* ====================================================
+     EDIT
+  ==================================================== */
+
+  const [editingPerson, setEditingPerson] = useState(null);
+
+  const [personName, setPersonName] = useState("");
+
+  const [personGender, setPersonGender] = useState("unknown");
+
+  /* ====================================================
+     LOADING
+  ==================================================== */
+
+  const [saving, setSaving] = useState(false);
+
+  const [savingRelationship, setSavingRelationship] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+
+  /* ====================================================
+     REACT FLOW INSTANCE
+  ==================================================== */
+
+  const [reactFlowInstance, setReactFlowInstance] = useState(null);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error("Auth error:", error);
+        setUser(null);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  /* ====================================================
+     INITIALIZE
+  ==================================================== */
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      initializeTree(user.id);
+    }
+  }, [authLoading, user]);
+
+  /* ====================================================
+     INITIALIZE TREE
+  ==================================================== */
+
+  const initializeTree = async (userId) => {
+    try {
+      setLoading(true);
+
+      // Find this user's family tree
+      const { data: existingTrees, error: fetchError } = await supabase
+        .from("family_trees")
+        .select("id")
+        .eq("owner_id", userId);
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      const existingTree = existingTrees?.[0];
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Existing tree
+      if (existingTree) {
+        setTreeId(existingTree.id);
+
+        await loadPeople(existingTree.id);
+        await loadRelationships(existingTree.id);
+
+        return;
+      }
+
+      // Create a new tree for this user
+      const { data: newTree, error: createError } = await supabase
+        .from("family_trees")
+        .insert({
+          name: "My Family Tree",
+          description: "My first family tree",
+          owner_id: userId,
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        throw createError;
+      }
+
+      setTreeId(newTree.id);
+
+      setNodes([]);
+      setEdges([]);
+    } catch (error) {
+      console.error("Tree initialization error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ====================================================
+     NODE DATA FACTORY
+  ==================================================== */
+
+  const createNodeData = (person) => ({
+    name: person.name,
+
+    gender: person.gender,
+
+    person,
+
+    onInfo: (selectedPersonData) => {
+      setInfoPerson(selectedPersonData);
+    },
+
+    onEdit: (selectedPersonData) => {
+      setEditingPerson(selectedPersonData);
+
+      setPersonName(selectedPersonData.name);
+
+      setPersonGender(selectedPersonData.gender || "unknown");
+
+      setShowEditPerson(true);
+    },
+
+    onDelete: handleDeletePerson,
+  });
+
+  /* ====================================================
+     LOAD PEOPLE
+  ==================================================== */
+
+  const loadPeople = async (id) => {
+    const { data, error } = await supabase
+      .from("people")
+      .select("*")
+      .eq("tree_id", id);
+
+    if (error) {
+      console.error("Error loading people:", error);
+
+      return;
+    }
+
+    const formattedNodes = data.map((person, index) => ({
+      id: person.id,
+
+      type: "familyMember",
+
+      /*
+       * Initial position only.
+       *
+       * Auto Arrange will replace this
+       * with the old hierarchy.
+       */
+
+      position: {
+        x: (index % 5) * 300,
+
+        y: Math.floor(index / 5) * 220,
+      },
+
+      data: createNodeData(person),
+    }));
+
+    setNodes(formattedNodes);
+  };
+
+  /* ====================================================
+     LOAD RELATIONSHIPS
+  ==================================================== */
+
+  const loadRelationships = async (id) => {
+    const { data, error } = await supabase
+      .from("relationships")
+      .select("*")
+      .eq("tree_id", id);
+
+    if (error) {
+      console.error("Error loading relationships:", error);
+
+      return;
+    }
+
+    const formattedEdges = data.map((relationship) => {
+      let source;
+
+      let target;
+
+      /*
+       * Parent:
+       *
+       * related_person = parent
+       * person = child
+       */
+
+      if (relationship.relationship_type === "parent") {
+        source = relationship.related_person_id;
+
+        target = relationship.person_id;
+      } else {
+        /*
+         * Spouse
+         */
+
+        source = relationship.person_id;
+
+        target = relationship.related_person_id;
+      }
+
+      return {
+        id: relationship.id,
+
+        source,
+
+        target,
+
+        type: "bezier",
+
+        animated: false,
+
+        data: {
+          relationshipType: relationship.relationship_type,
+        },
+      };
+    });
+
+    setEdges(formattedEdges);
+  };
+
+  /* ====================================================
+     CONNECTED PEOPLE
+  ==================================================== */
+
+  const getConnectedPersonIds = (personId) => {
+    const connectedIds = new Set([personId]);
+
+    edges.forEach((edge) => {
+      if (edge.source === personId) {
+        connectedIds.add(edge.target);
+      }
+
+      if (edge.target === personId) {
+        connectedIds.add(edge.source);
+      }
+    });
+
+    return connectedIds;
+  };
+
+  /* ====================================================
+     RELATIONSHIP LABEL
+  ==================================================== */
+
+  const getRelationshipLabel = (edge) => {
+    if (!edge?.data?.relationshipType) {
+      return "";
+    }
+
+    const sourceNode = nodes.find((node) => node.id === edge.source);
+
+    const targetNode = nodes.find((node) => node.id === edge.target);
+
+    if (!sourceNode || !targetNode) {
+      return "";
+    }
+
+    const sourceGender = sourceNode.data.gender;
+
+    const targetGender = targetNode.data.gender;
+
+    /* PARENT */
+
+    if (edge.data.relationshipType === "parent") {
+      if (selectedPerson?.id === edge.source) {
+        if (targetGender === "female") {
+          return "Daughter";
+        }
+
+        if (targetGender === "male") {
+          return "Son";
+        }
+
+        return "Child";
+      }
+
+      if (selectedPerson?.id === edge.target) {
+        if (sourceGender === "female") {
+          return "Mother";
+        }
+
+        if (sourceGender === "male") {
+          return "Father";
+        }
+
+        return "Parent";
+      }
+
+      return "";
+    }
+
+    /* SPOUSE */
+
+    if (edge.data.relationshipType === "spouse") {
+      const otherNode =
+        selectedPerson?.id === edge.source
+          ? targetNode
+          : selectedPerson?.id === edge.target
+            ? sourceNode
+            : null;
+
+      if (!otherNode) {
+        return "";
+      }
+
+      if (otherNode.data.gender === "female") {
+        return "Wife";
+      }
+
+      if (otherNode.data.gender === "male") {
+        return "Husband";
+      }
+
+      return "Spouse";
+    }
+
+    return "";
+  };
+
+  /* ====================================================
+     RENDER EDGE
+  ==================================================== */
+
+  const getRenderedEdge = (edge) => {
+    const isConnected =
+      selectedPerson &&
+      (edge.source === selectedPerson.id || edge.target === selectedPerson.id);
+
+    if (!isConnected) {
+      return {
+        ...edge,
+
+        type: "bezier",
+
+        animated: false,
+
+        label: "",
+
+        className: "family-edge-normal",
+
+        style: {
+          stroke: "#94a3b8",
+
+          strokeWidth: 1.5,
+        },
+      };
+    }
+
+    const isSelectedSource = edge.source === selectedPerson.id;
+
+    const renderedSource = isSelectedSource ? edge.source : edge.target;
+
+    const renderedTarget = isSelectedSource ? edge.target : edge.source;
+
+    return {
+      ...edge,
+
+      source: renderedSource,
+
+      target: renderedTarget,
+
+      type: "bezier",
+
+      animated: true,
+
+      label: getRelationshipLabel(edge),
+
+      labelStyle: {
+        fill: "#2563eb",
+
+        fontSize: 12,
+
+        fontWeight: 700,
+      },
+
+      labelBgStyle: {
+        fill: "#ffffff",
+
+        fillOpacity: 0.97,
+      },
+
+      labelBgPadding: [7, 4],
+
+      labelBgBorderRadius: 8,
+
+      className: "family-edge-highlighted",
+
+      style: {
+        stroke: "#3b82f6",
+
+        strokeWidth: 2.8,
+      },
+    };
+  };
+
+  /* ====================================================
+     CREATE RELATIONSHIP
+  ==================================================== */
+
+  const handleCreateRelationship = async ({
+    personId,
+    relatedPersonId,
+    relationshipType,
+  }) => {
+    if (!treeId) return;
+
+    try {
+      setSavingRelationship(true);
+
+      /* LOCAL DUPLICATE */
+
+      const duplicateExists = edges.some((edge) => {
+        const samePeople =
+          (edge.source === personId && edge.target === relatedPersonId) ||
+          (edge.source === relatedPersonId && edge.target === personId);
+
+        if (!samePeople) {
+          return false;
+        }
+
+        if (relationshipType === "spouse") {
+          return edge.data?.relationshipType === "spouse";
+        }
+
+        return (
+          edge.data?.relationshipType === "parent" &&
+          edge.target === personId &&
+          edge.source === relatedPersonId
+        );
+      });
+
+      if (duplicateExists) {
+        alert("This relationship already exists.");
+
+        return;
+      }
+
+      /* DATABASE DUPLICATE */
+
+      let query = supabase
+        .from("relationships")
+        .select("*")
+        .eq("tree_id", treeId)
+        .eq("relationship_type", relationshipType);
+
+      if (relationshipType === "spouse") {
+        query = query.or(
+          `and(person_id.eq.${personId},related_person_id.eq.${relatedPersonId}),and(person_id.eq.${relatedPersonId},related_person_id.eq.${personId})`,
+        );
+      } else {
+        query = query
+          .eq("person_id", personId)
+          .eq("related_person_id", relatedPersonId);
+      }
+
+      const { data: existingRelationship, error: checkError } =
+        await query.maybeSingle();
+
+      if (checkError) {
+        throw checkError;
+      }
+
+      if (existingRelationship) {
+        alert("This relationship already exists.");
+
+        return;
+      }
+
+      /* INSERT */
+
+      const { data, error } = await supabase
+        .from("relationships")
+        .insert({
+          tree_id: treeId,
+
+          person_id: personId,
+
+          related_person_id: relatedPersonId,
+
+          relationship_type: relationshipType,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      let source;
+
+      let target;
+
+      if (relationshipType === "parent") {
+        source = relatedPersonId;
+
+        target = personId;
+      } else {
+        source = personId;
+
+        target = relatedPersonId;
+      }
+
+      setEdges((currentEdges) => [
+        ...currentEdges,
+
+        {
+          id: data.id,
+
+          source,
+
+          target,
+
+          type: "bezier",
+
+          animated: false,
+
+          data: {
+            relationshipType,
+          },
+        },
+      ]);
+
+      setShowRelationshipModal(false);
+    } catch (error) {
+      console.error("Error creating relationship:", error);
+
+      alert(error.message || "Unable to create relationship.");
+    } finally {
+      setSavingRelationship(false);
+    }
+  };
+
+  /* ====================================================
+     ADD PERSON
+  ==================================================== */
+
+  const handleAddPerson = async (event) => {
+    event.preventDefault();
+
+    if (!personName.trim() || !treeId) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const { data, error } = await supabase
+        .from("people")
+        .insert({
+          tree_id: treeId,
+
+          name: personName.trim(),
+
+          gender: personGender,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const newNode = {
+        id: data.id,
+
+        type: "familyMember",
+
+        position: {
+          x: 0,
+
+          y: 100,
+        },
+
+        data: createNodeData(data),
+      };
+
+      setNodes((currentNodes) => [...currentNodes, newNode]);
+
+      setPersonName("");
+
+      setPersonGender("unknown");
+
+      setShowAddPerson(false);
+
+      /*
+       * Automatically arrange after
+       * adding someone.
+       */
+
+      setTimeout(() => {
+        setNodes((currentNodes) => {
+          const layout = getLayoutedElements(currentNodes, edges);
+
+          return layout.nodes;
+        });
+      }, 50);
+    } catch (error) {
+      console.error("Error creating person:", error);
+
+      alert("Unable to create person.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ====================================================
+     EDIT PERSON
+  ==================================================== */
+
+  const handleEditPerson = async (event) => {
+    event.preventDefault();
+
+    if (!editingPerson || !personName.trim()) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const { data, error } = await supabase
+        .from("people")
+        .update({
+          name: personName.trim(),
+
+          gender: personGender,
+        })
+        .eq("id", editingPerson.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== data.id) {
+            return node;
+          }
+
+          return {
+            ...node,
+
+            data: createNodeData(data),
+          };
+        }),
+      );
+
+      if (infoPerson?.id === data.id) {
+        setInfoPerson(data);
+      }
+
+      if (selectedPerson?.id === data.id) {
+        setSelectedPerson({
+          id: data.id,
+
+          name: data.name,
+
+          gender: data.gender,
+        });
+      }
+
+      setEditingPerson(null);
+
+      setPersonName("");
+
+      setPersonGender("unknown");
+
+      setShowEditPerson(false);
+    } catch (error) {
+      console.error("Error editing person:", error);
+
+      alert("Unable to update person.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ====================================================
+     DELETE PERSON
+  ==================================================== */
+
+  async function handleDeletePerson(person) {
+    if (!person) return;
+
+    const confirmed = window.confirm(
+      `Delete ${person.name} from the family tree?\n\nAll relationships connected to this person will also be removed.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      /* DELETE RELATIONSHIPS */
+
+      const { error: relationshipError } = await supabase
+        .from("relationships")
+        .delete()
+        .eq("tree_id", treeId)
+        .or(`person_id.eq.${person.id},related_person_id.eq.${person.id}`);
+
+      if (relationshipError) {
+        throw relationshipError;
+      }
+
+      /* DELETE PERSON */
+
+      const { error: personError } = await supabase
+        .from("people")
+        .delete()
+        .eq("id", person.id);
+
+      if (personError) {
+        throw personError;
+      }
+
+      /* REMOVE NODE */
+
+      setNodes((currentNodes) =>
+        currentNodes.filter((node) => node.id !== person.id),
+      );
+
+      /* REMOVE EDGES */
+
+      setEdges((currentEdges) =>
+        currentEdges.filter(
+          (edge) => edge.source !== person.id && edge.target !== person.id,
+        ),
+      );
+
+      if (selectedPerson?.id === person.id) {
+        setSelectedPerson(null);
+      }
+
+      if (infoPerson?.id === person.id) {
+        setInfoPerson(null);
+      }
+    } catch (error) {
+      console.error("Error deleting person:", error);
+
+      alert(error.message || "Unable to delete person.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /* ====================================================
+     AUTO ARRANGE
+  ==================================================== */
+
+  const handleAutoArrange = useCallback(() => {
+    if (!nodes.length) return;
+
+    const { nodes: layoutedNodes } = getLayoutedElements(nodes, edges);
+
+    setNodes(layoutedNodes);
+
+    /*
+     * Give ReactFlow a moment to
+     * update before fitting.
+     */
+
+    setTimeout(() => {
+      reactFlowInstance?.fitView({
+        padding: 0.15,
+
+        duration: 600,
+
+        minZoom: 0.35,
+
+        maxZoom: 1.1,
+      });
+    }, 50);
+  }, [nodes, edges, setNodes, reactFlowInstance]);
+
+  /* ====================================================
+     SEARCHED PEOPLE
+  ==================================================== */
+
+  const filteredPeople = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return nodes;
+    }
+
+    return nodes.filter((node) =>
+      node.data.name?.toLowerCase().includes(query),
+    );
+  }, [nodes, searchQuery]);
+
+  /* ====================================================
+     SELECT PERSON
+  ==================================================== */
+
+  const handleSelectPerson = (person) => {
+    if (!person) return;
+
+    const selected = {
+      id: person.id,
+
+      name: person.data ? person.data.name : person.name,
+
+      gender: person.data ? person.data.gender : person.gender,
+    };
+
+    setSelectedPerson(selected);
+
+    setDetailsTab("details");
+
+    /*
+     * Move viewport toward person.
+     */
+
+    if (reactFlowInstance && person.position) {
+      reactFlowInstance.setCenter(
+        person.position.x + NODE_WIDTH / 2,
+
+        person.position.y + NODE_HEIGHT / 2,
+
+        {
+          zoom: 0.8,
+
+          duration: 500,
+        },
+      );
+    }
+  };
+
+  /* ====================================================
+     SELECTED NODE
+  ==================================================== */
+
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.id === selectedPerson?.id),
+    [nodes, selectedPerson],
+  );
+
+  /* ====================================================
+     SELECTED RELATIONSHIPS
+  ==================================================== */
+
+  const selectedParents = selectedPerson
+    ? edges
+        .filter(
+          (edge) =>
+            edge.target === selectedPerson.id &&
+            edge.data?.relationshipType === "parent",
+        )
+        .map((edge) => nodes.find((node) => node.id === edge.source))
+        .filter(Boolean)
+    : [];
+
+  const selectedChildren = selectedPerson
+    ? edges
+        .filter(
+          (edge) =>
+            edge.source === selectedPerson.id &&
+            edge.data?.relationshipType === "parent",
+        )
+        .map((edge) => nodes.find((node) => node.id === edge.target))
+        .filter(Boolean)
+    : [];
+
+  const selectedSpouses = selectedPerson
+    ? edges
+        .filter(
+          (edge) =>
+            edge.data?.relationshipType === "spouse" &&
+            (edge.source === selectedPerson.id ||
+              edge.target === selectedPerson.id),
+        )
+        .map((edge) => {
+          const spouseId =
+            edge.source === selectedPerson.id ? edge.target : edge.source;
+
+          return nodes.find((node) => node.id === spouseId);
+        })
+        .filter(Boolean)
+    : [];
+
+  /* ====================================================
+     EXPORT TREE
+  ==================================================== */
+
+  const handleExport = () => {
+    const exportData = {
+      tree: {
+        id: treeId,
+
+        name: "My Family Tree",
+      },
+
+      people: nodes.map((node) => ({
+        id: node.id,
+
+        name: node.data.name,
+
+        gender: node.data.gender,
+      })),
+
+      relationships: edges.map((edge) => ({
+        id: edge.id,
+
+        source: edge.source,
+
+        target: edge.target,
+
+        type: edge.data?.relationshipType,
+      })),
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = "family-tree.json";
+
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
+
+  /* ====================================================
+   RELATIONSHIP LIST
+  ==================================================== */
+
+  const relationshipList = edges
+    .map((edge) => {
+      const source = nodes.find((node) => node.id === edge.source);
+
+      const target = nodes.find((node) => node.id === edge.target);
+
+      if (!source || !target) {
+        return null;
+      }
+
+      return {
+        ...edge,
+
+        sourceName: source.data.name,
+
+        targetName: target.data.name,
+      };
+    })
+    .filter(Boolean);
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) {
+        throw error;
+      }
+
+      setUser(null);
+      setTreeId(null);
+      setNodes([]);
+      setEdges([]);
+      setSelectedPerson(null);
+      setInfoPerson(null);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
+  /* ====================================================
+   LOADING / AUTHENTICATION
+  ==================================================== */
+
+  /* CHECKING SUPABASE SESSION */
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <LoaderCircle size={32} className="animate-spin text-slate-500" />
+      </div>
+    );
+  }
+
+  /* USER NOT LOGGED IN */
+
+  if (!user) {
+    if (authPage === "register") {
+      return <Register onLogin={() => setAuthPage("login")} />;
+    }
+
+    return (
+      <Login
+        onLogin={(loggedInUser) => {
+          setUser(loggedInUser);
+        }}
+        onRegister={() => setAuthPage("register")}
+      />
+    );
+  }
+
+  /* FAMILY TREE IS LOADING */
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex items-center gap-3 text-slate-500">
+          <LoaderCircle size={22} className="animate-spin" />
+
+          <span>Loading your family tree...</span>
+        </div>
+      </div>
+    );
+  }
+
+  /* ====================================================
+   MAIN APPLICATION
+==================================================== */
+
+  return (
+    <div
+      className="
+      h-screen
+      overflow-hidden
+      bg-slate-50
+      text-slate-900
+    "
+    >
+      {/* ==================================================
+          HEADER
+      ================================================== */}
+
+      <header
+        className="
+          relative z-40
+          flex h-16
+          items-center
+          justify-between
+          border-b
+          border-slate-200
+          bg-white
+          px-5
+          shadow-sm
+        "
+      >
+        {/* LOGO */}
+
+        <div className="flex items-center gap-3">
+          <div
+            className="
+              flex h-10 w-10
+              items-center justify-center
+              rounded-xl
+              bg-slate-900
+              text-white
+              shadow-sm
+            "
+          >
+            <TreePine size={22} />
+          </div>
+
+          <div>
+            <h1
+              className="
+                text-base
+                font-bold
+                text-slate-900
+              "
+            >
+              FamilyTree
+            </h1>
+
+            <p
+              className="
+                text-xs
+                text-slate-400
+              "
+            >
+              My Family Tree
+            </p>
+          </div>
+
+          <ChevronRight size={15} className="text-slate-300" />
+        </div>
+
+        {/* HEADER ACTIONS */}
+
+        <div className="flex items-center gap-2">
+          {/* AUTO ARRANGE */}
+
+          <button
+            type="button"
+            onClick={handleAutoArrange}
+            className="
+              hidden
+              items-center gap-2
+              rounded-xl
+              bg-slate-900
+              px-4 py-2.5
+              text-sm
+              font-medium
+              text-white
+              shadow-sm
+              transition
+              hover:bg-slate-800
+              active:scale-95
+              md:flex
+            "
+          >
+            <WandSparkles size={17} />
+            Auto Arrange
+          </button>
+
+          {/* TREE INFO */}
+
+          <button
+            type="button"
+            onClick={() => setShowTreeInfo(true)}
+            className="
+              flex items-center gap-2
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              px-4 py-2.5
+              text-sm
+              font-medium
+              text-slate-700
+              shadow-sm
+              transition
+              hover:bg-slate-50
+            "
+          >
+            <Info size={17} />
+
+            <span className="hidden sm:inline">Tree Info</span>
+          </button>
+
+          {/* EXPORT */}
+
+          <button
+            type="button"
+            onClick={handleExport}
+            className="
+              flex items-center gap-2
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              px-4 py-2.5
+              text-sm
+              font-medium
+              text-slate-700
+              shadow-sm
+              transition
+              hover:bg-slate-50
+            "
+          >
+            <Download size={17} />
+
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          {/* ADD RELATIONSHIP */}
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!selectedPerson) {
+                alert("Select a family member first.");
+
+                return;
+              }
+
+              if (nodes.length < 2) {
+                alert("Add at least two family members first.");
+
+                return;
+              }
+
+              setShowRelationshipModal(true);
+            }}
+            className="
+              hidden
+              items-center gap-2
+              rounded-xl
+              border
+              border-slate-200
+              bg-white
+              px-4 py-2.5
+              text-sm
+              font-medium
+              text-slate-700
+              shadow-sm
+              transition
+              hover:bg-slate-50
+              md:flex
+            "
+          >
+            <Link2 size={17} />
+            Add Relationship
+          </button>
+
+          {/* ADD PERSON */}
+
+          <button
+            type="button"
+            onClick={() => setShowAddPerson(true)}
+            className="
+              flex items-center gap-2
+              rounded-xl
+              bg-slate-900
+              px-4 py-2.5
+              text-sm
+              font-medium
+              text-white
+              shadow-sm
+              transition
+              hover:bg-slate-800
+              active:scale-95
+            "
+          >
+            <Plus size={18} />
+
+            <span className="hidden sm:inline">Add Person</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="
+            rounded-xl
+            px-4 py-2
+            text-sm
+            font-semibold
+            text-red-600
+            transition
+            hover:bg-red-500
+            hover:text-slate-100
+          "
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {/* ==================================================
+          WORKSPACE
+      ================================================== */}
+
+      <div
+        className="
+          relative
+          h-[calc(100vh-4rem)]
+          overflow-hidden
+        "
+      >
+        {/* ==================================================
+    SIDEBAR TOGGLE
+================================================== */}
+
+        <button
+          type="button"
+          onClick={() => setSidebarOpen((prev) => !prev)}
+          className="
+    absolute
+    left-4
+    top-4
+    z-50
+    flex
+    h-11
+    w-11
+    items-center
+    justify-center
+    rounded-xl
+    border
+    border-slate-200
+    bg-white
+    text-slate-700
+    shadow-lg
+    transition-all
+    duration-200
+    hover:bg-slate-50
+    hover:shadow-xl
+    active:scale-95
+  "
+          title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+
+        {/* ==================================================
+    LEFT SIDEBAR
+================================================== */}
+
+        <div
+          className={`
+    absolute
+    left-0
+    top-0
+    z-40
+    h-full
+    transition-transform
+    duration-300
+    ease-in-out
+    ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+  `}
+        >
+          <FamilySidebar
+            nodes={nodes}
+            edges={edges}
+            selectedPerson={selectedPerson}
+            setSelectedPerson={handleSelectPerson}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onAddPerson={() => setShowAddPerson(true)}
+            onAddRelationship={() => {
+              if (!selectedPerson) {
+                alert("Select a family member first.");
+                return;
+              }
+
+              if (nodes.length < 2) {
+                alert("Add at least two family members first.");
+                return;
+              }
+
+              setShowRelationshipModal(true);
+            }}
+          />
+        </div>
+
+        {/* ==================================================
+            REACT FLOW
+        ================================================== */}
+
+        <main
+          className="
+            absolute
+            inset-0
+            overflow-hidden
+          "
+        >
+          <ReactFlow
+            nodes={nodes.map((node) => {
+              const connectedIds = selectedPerson
+                ? getConnectedPersonIds(selectedPerson.id)
+                : null;
+
+              const isSearchMatch =
+                !searchQuery ||
+                node.data.name
+                  ?.toLowerCase()
+                  .includes(searchQuery.toLowerCase());
+
+              const isConnected = !selectedPerson || connectedIds?.has(node.id);
+
+              const isSelected = selectedPerson?.id === node.id;
+
+              return {
+                ...node,
+
+                className: !isSearchMatch
+                  ? "family-dimmed"
+                  : isSelected
+                    ? "family-selected"
+                    : isConnected
+                      ? "family-connected"
+                      : "family-dimmed",
+              };
+            })}
+            edges={edges.map(getRenderedEdge)}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            onInit={setReactFlowInstance}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={(_, node) => {
+              const person = nodes.find((item) => item.id === node.id);
+
+              if (person) {
+                handleSelectPerson(person);
+              }
+            }}
+            onPaneClick={() => {
+              setSelectedPerson(null);
+            }}
+            fitView
+            fitViewOptions={{
+              padding: 0.08,
+              minZoom: 0.35,
+              maxZoom: 1,
+            }}
+            minZoom={0.2}
+            maxZoom={2}
+          >
+            <Background gap={24} size={1} color="#e2e8f0" />
+
+            <Controls position="bottom-left" showInteractive={false} />
+
+            <MiniMap
+              position="bottom-right"
+              nodeColor={() => "#64748b"}
+              maskColor="rgba(248,250,252,0.75)"
+            />
+          </ReactFlow>
+
+          {/* ==================================================
+              MOBILE / CENTER AUTO ARRANGE
+          ================================================== */}
+
+          <button
+            type="button"
+            onClick={handleAutoArrange}
+            className="
+              absolute
+              bottom-6
+              left-1/2
+              z-20
+              -translate-x-1/2
+              flex
+              items-center
+              gap-2
+              rounded-2xl
+              border
+              border-slate-200
+              bg-white/95
+              px-5
+              py-3
+              text-sm
+              font-semibold
+              text-slate-700
+              shadow-xl
+              backdrop-blur
+              transition
+              hover:bg-white
+              active:scale-95
+            "
+          >
+            <WandSparkles size={17} />
+            Auto Arrange
+          </button>
+        </main>
+
+        {/* ==================================================
+            RIGHT DETAILS PANEL
+        ================================================== */}
+
+        {selectedPerson && (
+          <aside
+            className="
+              absolute
+              right-0
+              top-0
+              z-30
+              flex
+              h-full
+              w-[320px]
+              flex-col
+              border-l
+              border-slate-200
+              bg-white
+              shadow-sm
+            "
+          >
+            {/* HEADER */}
+
+            <div
+              className="
+                flex
+                items-center
+                justify-between
+                border-b
+                border-slate-200
+                px-5
+                py-5
+              "
+            >
+              <div className="min-w-0">
+                <h2
+                  className="
+                    truncate
+                    text-lg
+                    font-bold
+                    text-slate-900
+                  "
+                >
+                  {selectedPerson.name}
+                </h2>
+
+                <span
+                  className={`
+                    mt-1
+                    inline-flex
+                    rounded-full
+                    px-2.5
+                    py-1
+                    text-[11px]
+                    font-semibold
+                    capitalize
+                    ${
+                      selectedPerson.gender === "female"
+                        ? "bg-pink-50 text-pink-600"
+                        : selectedPerson.gender === "male"
+                          ? "bg-blue-50 text-blue-600"
+                          : "bg-slate-100 text-slate-500"
+                    }
+                  `}
+                >
+                  {selectedPerson.gender || "Family member"}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPerson(null)}
+                className="
+                  rounded-xl
+                  p-2
+                  text-slate-400
+                  transition
+                  hover:bg-slate-100
+                  hover:text-slate-700
+                "
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            {/* TABS */}
+
+            <div
+              className="
+                flex
+                border-b
+                border-slate-200
+                px-4
+              "
+            >
+              {[
+                ["details", "Details"],
+                ["edit", "Edit"],
+                ["relationships", "Relationships"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setDetailsTab(key)}
+                  className={`
+                      relative
+                      flex-1
+                      px-2
+                      py-3
+                      text-xs
+                      font-semibold
+                      transition
+                      ${
+                        detailsTab === key
+                          ? "text-blue-600"
+                          : "text-slate-500 hover:text-slate-700"
+                      }
+                    `}
+                >
+                  {label}
+
+                  {detailsTab === key && (
+                    <span
+                      className="
+                          absolute
+                          bottom-0
+                          left-1
+                          right-1
+                          h-0.5
+                          bg-blue-600
+                        "
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* CONTENT */}
+
+            <div
+              className="
+                min-h-0
+                flex-1
+                overflow-y-auto
+                p-5
+              "
+            >
+              {/* DETAILS */}
+
+              {detailsTab === "details" && (
+                <div className="space-y-6">
+                  {/* BASIC */}
+
+                  <div>
+                    <p
+                      className="
+                        mb-3
+                        text-[11px]
+                        font-bold
+                        uppercase
+                        tracking-wider
+                        text-slate-400
+                      "
+                    >
+                      Personal Information
+                    </p>
+
+                    <div
+                      className="
+                        rounded-2xl
+                        border
+                        border-slate-100
+                        bg-slate-50
+                        p-4
+                      "
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="
+                            flex
+                            h-11
+                            w-11
+                            items-center
+                            justify-center
+                            rounded-full
+                            bg-white
+                            text-slate-500
+                            shadow-sm
+                          "
+                        >
+                          <UserRound size={20} />
+                        </div>
+
+                        <div>
+                          <p
+                            className="
+                              text-sm
+                              font-semibold
+                              text-slate-800
+                            "
+                          >
+                            {selectedPerson.name}
+                          </p>
+
+                          <p
+                            className="
+                              mt-0.5
+                              text-xs
+                              capitalize
+                              text-slate-400
+                            "
+                          >
+                            {selectedPerson.gender}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PARENTS */}
+
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <UsersRound size={15} className="text-slate-400" />
+
+                      <p
+                        className="
+                          text-[11px]
+                          font-bold
+                          uppercase
+                          tracking-wider
+                          text-slate-400
+                        "
+                      >
+                        Parents ({selectedParents.length})
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {selectedParents.map((parent) => (
+                        <button
+                          type="button"
+                          key={parent.id}
+                          onClick={() => handleSelectPerson(parent)}
+                          className="
+                              flex
+                              w-full
+                              items-center
+                              gap-3
+                              rounded-xl
+                              bg-slate-50
+                              p-3
+                              text-left
+                              transition
+                              hover:bg-slate-100
+                            "
+                        >
+                          <div
+                            className="
+                                flex
+                                h-9
+                                w-9
+                                items-center
+                                justify-center
+                                rounded-full
+                                bg-white
+                                text-slate-500
+                                shadow-sm
+                              "
+                          >
+                            <UserRound size={17} />
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">
+                              {parent.data.name}
+                            </p>
+
+                            <p className="text-xs text-slate-400">
+                              {parent.data.gender === "female"
+                                ? "Mother"
+                                : parent.data.gender === "male"
+                                  ? "Father"
+                                  : "Parent"}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {selectedParents.length === 0 && (
+                        <p className="text-sm text-slate-400">
+                          No parents added
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* SPOUSE */}
+
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <Heart size={15} className="text-slate-400" />
+
+                      <p
+                        className="
+                          text-[11px]
+                          font-bold
+                          uppercase
+                          tracking-wider
+                          text-slate-400
+                        "
+                      >
+                        Spouse ({selectedSpouses.length})
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {selectedSpouses.map((spouse) => (
+                        <button
+                          type="button"
+                          key={spouse.id}
+                          onClick={() => handleSelectPerson(spouse)}
+                          className="
+                              flex
+                              w-full
+                              items-center
+                              gap-3
+                              rounded-xl
+                              bg-slate-50
+                              p-3
+                              text-left
+                              transition
+                              hover:bg-slate-100
+                            "
+                        >
+                          <div
+                            className="
+                                flex
+                                h-9
+                                w-9
+                                items-center
+                                justify-center
+                                rounded-full
+                                bg-white
+                                text-slate-500
+                                shadow-sm
+                              "
+                          >
+                            <Heart size={16} />
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">
+                              {spouse.data.name}
+                            </p>
+
+                            <p className="text-xs text-slate-400">
+                              {spouse.data.gender === "female"
+                                ? "Wife"
+                                : spouse.data.gender === "male"
+                                  ? "Husband"
+                                  : "Spouse"}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {selectedSpouses.length === 0 && (
+                        <p className="text-sm text-slate-400">
+                          No spouse added
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CHILDREN */}
+
+                  <div>
+                    <div className="mb-3 flex items-center gap-2">
+                      <UsersRound size={15} className="text-slate-400" />
+
+                      <p
+                        className="
+                          text-[11px]
+                          font-bold
+                          uppercase
+                          tracking-wider
+                          text-slate-400
+                        "
+                      >
+                        Children ({selectedChildren.length})
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {selectedChildren.map((child) => (
+                        <button
+                          type="button"
+                          key={child.id}
+                          onClick={() => handleSelectPerson(child)}
+                          className="
+                              flex
+                              w-full
+                              items-center
+                              gap-3
+                              rounded-xl
+                              bg-slate-50
+                              p-3
+                              text-left
+                              transition
+                              hover:bg-slate-100
+                            "
+                        >
+                          <div
+                            className="
+                                flex
+                                h-9
+                                w-9
+                                items-center
+                                justify-center
+                                rounded-full
+                                bg-white
+                                text-slate-500
+                                shadow-sm
+                              "
+                          >
+                            <UserRound size={17} />
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-semibold text-slate-800">
+                              {child.data.name}
+                            </p>
+
+                            <p className="text-xs text-slate-400">
+                              {child.data.gender === "female"
+                                ? "Daughter"
+                                : child.data.gender === "male"
+                                  ? "Son"
+                                  : "Child"}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+
+                      {selectedChildren.length === 0 && (
+                        <p className="text-sm text-slate-400">
+                          No children added
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* EDIT */}
+
+              {detailsTab === "edit" && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      Edit family member
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      Update this person's information.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Full name
+                    </label>
+
+                    <input
+                      type="text"
+                      value={personName || selectedPerson.name}
+                      onChange={(event) => setPersonName(event.target.value)}
+                      onFocus={() => {
+                        if (!personName) {
+                          setPersonName(selectedPerson.name);
+                        }
+                      }}
+                      className="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-200
+                        px-4
+                        py-3
+                        text-sm
+                        outline-none
+                        transition
+                        focus:border-blue-300
+                        focus:ring-4
+                        focus:ring-blue-50
+                      "
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Gender
+                    </label>
+
+                    <select
+                      value={
+                        personGender !== "unknown"
+                          ? personGender
+                          : selectedPerson.gender || "unknown"
+                      }
+                      onChange={(event) => setPersonGender(event.target.value)}
+                      className="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-200
+                        bg-white
+                        px-4
+                        py-3
+                        text-sm
+                        outline-none
+                        focus:border-blue-300
+                        focus:ring-4
+                        focus:ring-blue-50
+                      "
+                    >
+                      <option value="unknown">Prefer not to specify</option>
+
+                      <option value="male">Male</option>
+
+                      <option value="female">Female</option>
+
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => {
+                      const currentPerson = nodes.find(
+                        (node) => node.id === selectedPerson.id,
+                      );
+
+                      if (!currentPerson) {
+                        return;
+                      }
+
+                      setEditingPerson(currentPerson.data.person);
+
+                      setPersonName(personName || currentPerson.data.name);
+
+                      setPersonGender(
+                        personGender !== "unknown"
+                          ? personGender
+                          : currentPerson.data.gender || "unknown",
+                      );
+
+                      /*
+                       * Reuse the same
+                       * edit handler by
+                       * triggering form
+                       * through a small
+                       * temporary event.
+                       */
+
+                      document
+                        .getElementById("family-edit-form")
+                        ?.requestSubmit();
+                    }}
+                    className="
+                      flex
+                      w-full
+                      items-center
+                      justify-center
+                      gap-2
+                      rounded-xl
+                      bg-slate-900
+                      px-4
+                      py-3
+                      text-sm
+                      font-semibold
+                      text-white
+                      transition
+                      hover:bg-slate-800
+                      disabled:opacity-50
+                    "
+                  >
+                    {saving && (
+                      <LoaderCircle size={16} className="animate-spin" />
+                    )}
+
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDeletePerson(selectedNode?.data?.person)
+                    }
+                    className="
+                      flex
+                      w-full
+                      items-center
+                      justify-center
+                      gap-2
+                      rounded-xl
+                      border
+                      border-red-200
+                      bg-red-50
+                      px-4
+                      py-3
+                      text-sm
+                      font-semibold
+                      text-red-600
+                      transition
+                      hover:bg-red-100
+                    "
+                  >
+                    <Trash2 size={17} />
+                    Delete Person
+                  </button>
+
+                  {/* HIDDEN EDIT FORM */}
+
+                  <form
+                    id="family-edit-form"
+                    onSubmit={handleEditPerson}
+                    className="hidden"
+                  >
+                    <input value={personName} onChange={() => {}} />
+                  </form>
+                </div>
+              )}
+
+              {/* RELATIONSHIPS */}
+
+              {detailsTab === "relationships" && (
+                <div className="space-y-5">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800">
+                      Family relationships
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-400">
+                      Everyone connected to {selectedPerson.name}.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {selectedParents.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          Parents
+                        </p>
+
+                        {selectedParents.map((person) => (
+                          <button
+                            type="button"
+                            key={person.id}
+                            onClick={() => handleSelectPerson(person)}
+                            className="
+                                mb-2
+                                flex
+                                w-full
+                                items-center
+                                gap-3
+                                rounded-xl
+                                border
+                                border-slate-100
+                                p-3
+                                text-left
+                                hover:bg-slate-50
+                              "
+                          >
+                            <UserRound size={18} className="text-slate-400" />
+
+                            <span className="text-sm font-medium text-slate-700">
+                              {person.data.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedSpouses.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          Spouse
+                        </p>
+
+                        {selectedSpouses.map((person) => (
+                          <button
+                            type="button"
+                            key={person.id}
+                            onClick={() => handleSelectPerson(person)}
+                            className="
+                                mb-2
+                                flex
+                                w-full
+                                items-center
+                                gap-3
+                                rounded-xl
+                                border
+                                border-slate-100
+                                p-3
+                                text-left
+                                hover:bg-slate-50
+                              "
+                          >
+                            <Heart size={18} className="text-pink-400" />
+
+                            <span className="text-sm font-medium text-slate-700">
+                              {person.data.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedChildren.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                          Children
+                        </p>
+
+                        {selectedChildren.map((person) => (
+                          <button
+                            type="button"
+                            key={person.id}
+                            onClick={() => handleSelectPerson(person)}
+                            className="
+                                mb-2
+                                flex
+                                w-full
+                                items-center
+                                gap-3
+                                rounded-xl
+                                border
+                                border-slate-100
+                                p-3
+                                text-left
+                                hover:bg-slate-50
+                              "
+                          >
+                            <UserRound size={18} className="text-blue-400" />
+
+                            <span className="text-sm font-medium text-slate-700">
+                              {person.data.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedParents.length === 0 &&
+                      selectedSpouses.length === 0 &&
+                      selectedChildren.length === 0 && (
+                        <div className="rounded-2xl bg-slate-50 p-6 text-center">
+                          <UsersRound
+                            size={28}
+                            className="
+                              mx-auto
+                              text-slate-300
+                            "
+                          />
+
+                          <p className="mt-3 text-sm font-medium text-slate-600">
+                            No relationships yet
+                          </p>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT PANEL FOOTER */}
+
+            <div
+              className="
+                border-t
+                border-slate-200
+                p-4
+              "
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingPerson(selectedNode?.data?.person);
+
+                  setPersonName(selectedPerson.name);
+
+                  setPersonGender(selectedPerson.gender || "unknown");
+
+                  setShowEditPerson(true);
+                }}
+                className="
+                  flex
+                  w-full
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-white
+                  px-4
+                  py-3
+                  text-sm
+                  font-semibold
+                  text-slate-700
+                  transition
+                  hover:bg-slate-50
+                "
+              >
+                <Pencil size={16} />
+                Edit Person
+              </button>
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {/* ==================================================
+          ADD PERSON MODAL
+      ================================================== */}
+
+      {showAddPerson && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[100]
+            flex
+            items-center
+            justify-center
+            bg-slate-950/40
+            p-4
+            backdrop-blur-sm
+          "
+        >
+          <div
+            className="
+              w-full
+              max-w-md
+              overflow-hidden
+              rounded-3xl
+              bg-white
+              shadow-2xl
+            "
+          >
+            <div
+              className="
+                flex
+                items-center
+                justify-between
+                border-b
+                border-slate-100
+                px-6
+                py-5
+              "
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Add Family Member
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Add someone to your family tree.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddPerson(false);
+
+                  setPersonName("");
+
+                  setPersonGender("unknown");
+                }}
+                className="
+                  rounded-xl
+                  p-2
+                  text-slate-400
+                  transition
+                  hover:bg-slate-100
+                  hover:text-slate-700
+                "
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddPerson} className="space-y-5 p-6">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Full name
+                </label>
+
+                <input
+                  type="text"
+                  value={personName}
+                  onChange={(event) => setPersonName(event.target.value)}
+                  placeholder="e.g. Vyasa"
+                  autoFocus
+                  className="
+                    w-full
+                    rounded-xl
+                    border
+                    border-slate-200
+                    px-4
+                    py-3
+                    text-sm
+                    outline-none
+                    transition
+                    placeholder:text-slate-300
+                    focus:border-slate-400
+                    focus:ring-4
+                    focus:ring-slate-100
+                  "
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Gender
+                </label>
+
+                <select
+                  value={personGender}
+                  onChange={(event) => setPersonGender(event.target.value)}
+                  className="
+                    w-full
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-white
+                    px-4
+                    py-3
+                    text-sm
+                    outline-none
+                    focus:border-slate-400
+                    focus:ring-4
+                    focus:ring-slate-100
+                  "
+                >
+                  <option value="unknown">Prefer not to specify</option>
+
+                  <option value="male">Male</option>
+
+                  <option value="female">Female</option>
+
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddPerson(false);
+
+                    setPersonName("");
+
+                    setPersonGender("unknown");
+                  }}
+                  className="
+                    rounded-xl
+                    px-4
+                    py-2.5
+                    text-sm
+                    font-medium
+                    text-slate-600
+                    transition
+                    hover:bg-slate-100
+                  "
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={!personName.trim() || saving}
+                  className="
+                    flex
+                    items-center
+                    gap-2
+                    rounded-xl
+                    bg-slate-900
+                    px-5
+                    py-2.5
+                    text-sm
+                    font-medium
+                    text-white
+                    transition
+                    hover:bg-slate-800
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                  "
+                >
+                  {saving && (
+                    <LoaderCircle size={16} className="animate-spin" />
+                  )}
+
+                  {saving ? "Adding..." : "Add Person"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================
+          EDIT PERSON MODAL
+      ================================================== */}
+
+      {showEditPerson && editingPerson && (
+        <div
+          className="
+              fixed
+              inset-0
+              z-[100]
+              flex
+              items-center
+              justify-center
+              bg-slate-950/40
+              p-4
+              backdrop-blur-sm
+            "
+        >
+          <div
+            className="
+                w-full
+                max-w-md
+                overflow-hidden
+                rounded-3xl
+                bg-white
+                shadow-2xl
+              "
+          >
+            <div
+              className="
+                  flex
+                  items-center
+                  justify-between
+                  border-b
+                  border-slate-100
+                  px-6
+                  py-5
+                "
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Edit Family Member
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Update this person's information.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEditPerson(false);
+
+                  setEditingPerson(null);
+                }}
+                className="
+                    rounded-xl
+                    p-2
+                    text-slate-400
+                    transition
+                    hover:bg-slate-100
+                    hover:text-slate-700
+                  "
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditPerson} className="space-y-5 p-6">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Full name
+                </label>
+
+                <input
+                  type="text"
+                  value={personName}
+                  onChange={(event) => setPersonName(event.target.value)}
+                  autoFocus
+                  className="
+                      w-full
+                      rounded-xl
+                      border
+                      border-slate-200
+                      px-4
+                      py-3
+                      text-sm
+                      outline-none
+                      focus:border-slate-400
+                      focus:ring-4
+                      focus:ring-slate-100
+                    "
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Gender
+                </label>
+
+                <select
+                  value={personGender}
+                  onChange={(event) => setPersonGender(event.target.value)}
+                  className="
+                      w-full
+                      rounded-xl
+                      border
+                      border-slate-200
+                      bg-white
+                      px-4
+                      py-3
+                      text-sm
+                      outline-none
+                      focus:border-slate-400
+                      focus:ring-4
+                      focus:ring-slate-100
+                    "
+                >
+                  <option value="unknown">Prefer not to specify</option>
+
+                  <option value="male">Male</option>
+
+                  <option value="female">Female</option>
+
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditPerson(false);
+
+                    setEditingPerson(null);
+                  }}
+                  className="
+                      rounded-xl
+                      px-4
+                      py-2.5
+                      text-sm
+                      font-medium
+                      text-slate-600
+                      hover:bg-slate-100
+                    "
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={!personName.trim() || saving}
+                  className="
+                      flex
+                      items-center
+                      gap-2
+                      rounded-xl
+                      bg-slate-900
+                      px-5
+                      py-2.5
+                      text-sm
+                      font-medium
+                      text-white
+                      hover:bg-slate-800
+                      disabled:opacity-50
+                    "
+                >
+                  {saving && (
+                    <LoaderCircle size={16} className="animate-spin" />
+                  )}
+
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================
+          RELATIONSHIP MODAL
+      ================================================== */}
+
+      <RelationshipModal
+        open={showRelationshipModal}
+        onClose={() => setShowRelationshipModal(false)}
+        people={nodes.map((node) => ({
+          id: node.id,
+
+          name: node.data.name,
+
+          gender: node.data.gender,
+        }))}
+        selectedPerson={selectedPerson}
+        existingRelationships={edges}
+        onSave={handleCreateRelationship}
+        saving={savingRelationship}
+      />
+
+      {/* ==================================================
+          TREE INFO MODAL
+      ================================================== */}
+
+      {showTreeInfo && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[100]
+            flex
+            items-center
+            justify-center
+            bg-slate-950/40
+            p-4
+            backdrop-blur-sm
+          "
+        >
+          <div
+            className="
+              w-full
+              max-w-md
+              overflow-hidden
+              rounded-3xl
+              bg-white
+              shadow-2xl
+            "
+          >
+            <div
+              className="
+                flex
+                items-center
+                justify-between
+                border-b
+                border-slate-100
+                px-6
+                py-5
+              "
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Tree Information
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Overview of your family tree.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowTreeInfo(false)}
+                className="
+                  rounded-xl
+                  p-2
+                  text-slate-400
+                  hover:bg-slate-100
+                "
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3 p-6">
+              <div
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  rounded-2xl
+                  bg-slate-50
+                  p-4
+                "
+              >
+                <div className="flex items-center gap-3">
+                  <UsersRound size={19} className="text-slate-500" />
+
+                  <span className="text-sm font-medium text-slate-600">
+                    Family Members
+                  </span>
+                </div>
+
+                <span className="text-lg font-bold text-slate-900">
+                  {nodes.length}
+                </span>
+              </div>
+
+              <div
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  rounded-2xl
+                  bg-slate-50
+                  p-4
+                "
+              >
+                <div className="flex items-center gap-3">
+                  <GitBranch size={19} className="text-slate-500" />
+
+                  <span className="text-sm font-medium text-slate-600">
+                    Relationships
+                  </span>
+                </div>
+
+                <span className="text-lg font-bold text-slate-900">
+                  {edges.length}
+                </span>
+              </div>
+
+              <div
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  rounded-2xl
+                  bg-slate-50
+                  p-4
+                "
+              >
+                <div className="flex items-center gap-3">
+                  <Heart size={19} className="text-slate-500" />
+
+                  <span className="text-sm font-medium text-slate-600">
+                    Spouse Relationships
+                  </span>
+                </div>
+
+                <span className="text-lg font-bold text-slate-900">
+                  {
+                    edges.filter(
+                      (edge) => edge.data?.relationshipType === "spouse",
+                    ).length
+                  }
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================
+          HELP BUTTON
+      ================================================== */}
+
+      <button
+        type="button"
+        className="
+          fixed
+          bottom-5
+          right-5
+          z-50
+          hidden
+          h-10
+          w-10
+          items-center
+          justify-center
+          rounded-full
+          border
+          border-slate-200
+          bg-white
+          text-slate-500
+          shadow-lg
+          transition
+          hover:bg-slate-50
+          md:flex
+        "
+        title="Help"
+      >
+        <CircleHelp size={19} />
+      </button>
+    </div>
+  );
+}
+
+export default App;
