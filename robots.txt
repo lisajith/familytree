@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://familytreebaby.vercel.app/sitemap.xml

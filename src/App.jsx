@@ -14,6 +14,7 @@ import "@xyflow/react/dist/style.css";
 
 import { LoaderCircle } from "lucide-react";
 
+import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
@@ -67,7 +68,7 @@ function App() {
      AUTH
   ==================================================== */
 
-  const [authPage, setAuthPage] = useState("login");
+  const [authPage, setAuthPage] = useState("landing");
 
   const [user, setUser] = useState(null);
 
@@ -1218,16 +1219,29 @@ function App() {
      LOGIN / REGISTER
   ==================================================== */
 
+  /* ====================================================
+   PUBLIC / AUTH PAGES
+  ==================================================== */
+
   if (!user) {
     if (authPage === "register") {
       return <Register onLogin={() => setAuthPage("login")} />;
     }
 
+    if (authPage === "login") {
+      return (
+        <Login
+          onLogin={(loggedInUser) => {
+            setUser(loggedInUser);
+          }}
+          onRegister={() => setAuthPage("register")}
+        />
+      );
+    }
+
     return (
-      <Login
-        onLogin={(loggedInUser) => {
-          setUser(loggedInUser);
-        }}
+      <LandingPage
+        onLogin={() => setAuthPage("login")}
         onRegister={() => setAuthPage("register")}
       />
     );
