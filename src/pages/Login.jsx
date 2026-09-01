@@ -109,7 +109,7 @@ function Login({ onLogin, onRegister }) {
         <div className="relative hidden overflow-hidden bg-slate-900 lg:flex lg:w-1/2">
           <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-blue-500/10" />
 
-          <div className="absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full bg-emerald-500/10" />
+          <div className="absolute -bottom-40 -right-40 h-125 w-125 rounded-full bg-emerald-500/10" />
 
           <div className="relative z-10 flex w-full flex-col justify-between p-12 xl:p-16">
             {/* LOGO */}

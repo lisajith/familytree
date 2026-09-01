@@ -1,22 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  Background,
   BezierEdge,
-  Controls,
-  MiniMap,
-  ReactFlow,
+  ReactFlowProvider,
   useEdgesState,
   useNodesState,
 } from "@xyflow/react";
+
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
 
 import "@xyflow/react/dist/style.css";
 
 import { LoaderCircle } from "lucide-react";
 
+/* ======================================================
+   PAGES
+====================================================== */
+
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+
+/* ======================================================
+   COMPONENTS
+====================================================== */
 
 import FamilyNode from "./components/FamilyNode";
 import FamilySidebar from "./components/FamilySidebar";
@@ -27,8 +40,17 @@ import AddPersonModal from "./components/AddPersonModal";
 import EditPersonModal from "./components/EditPersonModal";
 import TreeInfoModal from "./components/TreeInfoModal";
 import HelpButton from "./components/HelpButton";
+import FamilyTreeWorkspace from "./components/FamilyTreeWorkspace";
+
+/* ======================================================
+   SUPABASE
+====================================================== */
 
 import { supabase } from "./lib/supabase";
+
+/* ======================================================
+   UTILITIES
+====================================================== */
 
 import {
   getLayoutedElements,
@@ -60,18 +82,31 @@ const edgeTypes = {
 };
 
 /* ======================================================
-   APP
+   MAIN APP
 ====================================================== */
 
 function App() {
+  return (
+    <BrowserRouter>
+      <ReactFlowProvider>
+        <AppContent />
+      </ReactFlowProvider>
+    </BrowserRouter>
+  );
+}
+
+/* ======================================================
+   APP CONTENT
+====================================================== */
+
+function AppContent() {
+  const navigate = useNavigate();
+
   /* ====================================================
      AUTH
   ==================================================== */
 
-  const [authPage, setAuthPage] = useState("landing");
-
   const [user, setUser] = useState(null);
-
   const [authLoading, setAuthLoading] = useState(true);
 
   /* ====================================================
@@ -79,7 +114,6 @@ function App() {
   ==================================================== */
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
-
   const [searchQuery, setSearchQuery] = useState("");
 
   /* ====================================================
@@ -232,12 +266,7 @@ function App() {
           ),
         );
 
-        /*
-         * IMPORTANT:
-         *
-         * Don't directly depend on selectedPerson/infoPerson.
-         * Use functional state updates instead.
-         */
+        /* CLEAR SELECTION */
 
         setSelectedPerson((current) =>
           current?.id === person.id ? null : current,
@@ -264,15 +293,21 @@ function App() {
   const createNodeData = useCallback(
     (person) => ({
       name: person.name,
+
       gender: person.gender,
+
       person,
 
       onSelect: (selectedPersonData) => {
-        if (!selectedPersonData) return;
+        if (!selectedPersonData) {
+          return;
+        }
 
         setSelectedPerson({
           id: selectedPersonData.id,
+
           name: selectedPersonData.name,
+
           gender: selectedPersonData.gender || "unknown",
         });
 
@@ -280,13 +315,17 @@ function App() {
       },
 
       onInfo: (selectedPersonData) => {
-        if (!selectedPersonData) return;
+        if (!selectedPersonData) {
+          return;
+        }
 
         setInfoPerson(selectedPersonData);
 
         setSelectedPerson({
           id: selectedPersonData.id,
+
           name: selectedPersonData.name,
+
           gender: selectedPersonData.gender || "unknown",
         });
 
@@ -294,11 +333,16 @@ function App() {
       },
 
       onEdit: (selectedPersonData) => {
-        if (!selectedPersonData) return;
+        if (!selectedPersonData) {
+          return;
+        }
 
         setEditingPerson(selectedPersonData);
+
         setPersonName(selectedPersonData.name);
+
         setPersonGender(selectedPersonData.gender || "unknown");
+
         setShowEditPerson(true);
       },
 
@@ -362,7 +406,6 @@ function App() {
 
       const formattedEdges = (data || []).map((relationship) => {
         let source;
-
         let target;
 
         if (relationship.relationship_type === "parent") {
@@ -471,7 +514,7 @@ function App() {
     }
 
     initializeTree(user.id);
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, initializeTree]);
 
   /* ====================================================
      SELECT PERSON
@@ -495,11 +538,6 @@ function App() {
 
       setDetailsTab("details");
 
-      /*
-       * Move the React Flow camera to
-       * the selected person.
-       */
-
       if (reactFlowInstance && person.position) {
         reactFlowInstance.setCenter(
           person.position.x + NODE_WIDTH / 2,
@@ -516,6 +554,14 @@ function App() {
     },
     [reactFlowInstance],
   );
+
+  /* ====================================================
+     PANE CLICK
+  ==================================================== */
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedPerson(null);
+  }, []);
 
   /* ====================================================
      SELECTED RELATIONSHIPS
@@ -557,9 +603,7 @@ function App() {
 
       const selectedId = selectedPerson.id;
 
-      /*
-       * SPOUSE
-       */
+      /* SPOUSE */
 
       if (edge.data?.relationshipType === "spouse") {
         if (edge.source === selectedId || edge.target === selectedId) {
@@ -567,15 +611,10 @@ function App() {
         }
       }
 
-      /*
-       * PARENT
-       */
+      /* PARENT */
 
       if (edge.data?.relationshipType === "parent") {
-        /*
-         * Selected person is the child.
-         * Therefore edge.source is parent.
-         */
+        /* SELECTED PERSON IS CHILD */
 
         if (edge.target === selectedId) {
           const parentNode = nodes.find((node) => node.id === edge.source);
@@ -591,10 +630,7 @@ function App() {
           return "Parent";
         }
 
-        /*
-         * Selected person is parent.
-         * Therefore edge.target is child.
-         */
+        /* SELECTED PERSON IS PARENT */
 
         if (edge.source === selectedId) {
           const childNode = nodes.find((node) => node.id === edge.target);
@@ -632,9 +668,7 @@ function App() {
         (edge.source === selectedPerson.id ||
           edge.target === selectedPerson.id);
 
-      /*
-       * No selected person.
-       */
+      /* NO SELECTED PERSON */
 
       if (!selectedPerson) {
         return {
@@ -666,9 +700,7 @@ function App() {
         };
       }
 
-      /*
-       * Highlighted relationship.
-       */
+      /* HIGHLIGHTED */
 
       if (isHighlighted) {
         return {
@@ -708,10 +740,7 @@ function App() {
         };
       }
 
-      /*
-       * Connected to family member but
-       * not directly the selected person.
-       */
+      /* CONNECTED */
 
       if (isConnected) {
         return {
@@ -731,9 +760,7 @@ function App() {
         };
       }
 
-      /*
-       * Completely unrelated relationship.
-       */
+      /* UNRELATED */
 
       return {
         ...edge,
@@ -754,36 +781,26 @@ function App() {
   }, [edges, selectedPerson, connectedPersonIds, getRelationshipLabel]);
 
   /* ====================================================
-     STYLED NODES
+     GET RENDERED EDGE
   ==================================================== */
 
-  const displayedNodes = useMemo(() => {
-    return nodes.map((node) => {
-      if (!selectedPerson) {
-        return {
-          ...node,
+  const getRenderedEdge = useCallback(
+    (edge) => {
+      return displayedEdges.find((item) => item.id === edge.id) || edge;
+    },
+    [displayedEdges],
+  );
 
-          selected: false,
-        };
-      }
+  /* ====================================================
+     WORKSPACE CONNECTED PERSON FUNCTION
+  ==================================================== */
 
-      const isSelected = node.id === selectedPerson.id;
-
-      const isConnected = connectedPersonIds.has(node.id);
-
-      return {
-        ...node,
-
-        selected: isSelected,
-
-        style: {
-          opacity: isSelected || isConnected ? 1 : 0.45,
-
-          transition: "opacity 200ms ease",
-        },
-      };
-    });
-  }, [nodes, selectedPerson, connectedPersonIds]);
+  const getWorkspaceConnectedPersonIds = useCallback(
+    (personId) => {
+      return getConnectedPersonIds(personId, edges);
+    },
+    [edges],
+  );
 
   /* ====================================================
      CREATE RELATIONSHIP
@@ -881,7 +898,6 @@ function App() {
       }
 
       let source;
-
       let target;
 
       if (relationshipType === "parent") {
@@ -976,9 +992,7 @@ function App() {
 
       setShowAddPerson(false);
 
-      /*
-       * Arrange after adding.
-       */
+      /* ARRANGE */
 
       setTimeout(() => {
         setNodes((currentNodes) => {
@@ -1198,6 +1212,8 @@ function App() {
       setSelectedPerson(null);
 
       setInfoPerson(null);
+
+      navigate("/");
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -1216,331 +1232,246 @@ function App() {
   }
 
   /* ====================================================
-     LOGIN / REGISTER
-  ==================================================== */
-
-  /* ====================================================
-   PUBLIC / AUTH PAGES
+     PUBLIC ROUTES
   ==================================================== */
 
   if (!user) {
-    if (authPage === "register") {
-      return <Register onLogin={() => setAuthPage("login")} />;
-    }
-
-    if (authPage === "login") {
-      return (
-        <Login
-          onLogin={(loggedInUser) => {
-            setUser(loggedInUser);
-          }}
-          onRegister={() => setAuthPage("register")}
+    return (
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <LandingPage
+              onLogin={() => navigate("/login")}
+              onRegister={() => navigate("/register")}
+            />
+          }
         />
-      );
-    }
 
-    return (
-      <LandingPage
-        onLogin={() => setAuthPage("login")}
-        onRegister={() => setAuthPage("register")}
-      />
+        <Route
+          path="/login"
+          element={
+            <Login
+              onLogin={(loggedInUser) => {
+                setUser(loggedInUser);
+
+                navigate("/tree");
+              }}
+              onRegister={() => navigate("/register")}
+            />
+          }
+        />
+
+        <Route
+          path="/register"
+          element={<Register onLogin={() => navigate("/login")} />}
+        />
+
+        <Route path="/tree" element={<Navigate to="/login" replace />} />
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     );
   }
 
   /* ====================================================
-     TREE LOADING
-  ==================================================== */
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="flex items-center gap-3 text-slate-500">
-          <LoaderCircle size={22} className="animate-spin" />
-
-          <span>Loading your family tree...</span>
-        </div>
-      </div>
-    );
-  }
-
-  /* ====================================================
-     MAIN UI
+     AUTHENTICATED ROUTES
   ==================================================== */
 
   return (
-    <div
-      className="
-        h-screen
-        overflow-hidden
-        bg-slate-50
-        text-slate-900
-      "
-    >
-      {/* ==================================================
-          HEADER
-      ================================================== */}
+    <Routes>
+      <Route path="/" element={<Navigate to="/tree" replace />} />
 
-      <AppHeader
-        handleAutoArrange={handleAutoArrange}
-        setShowTreeInfo={setShowTreeInfo}
-        handleExport={handleExport}
-        selectedPerson={selectedPerson}
-        nodes={nodes}
-        setShowRelationshipModal={setShowRelationshipModal}
-        setShowAddPerson={setShowAddPerson}
-        handleLogout={handleLogout}
+      <Route path="/login" element={<Navigate to="/tree" replace />} />
+
+      <Route path="/register" element={<Navigate to="/tree" replace />} />
+
+      {/* ================================================
+          FAMILY TREE
+      ================================================ */}
+
+      <Route
+        path="/tree"
+        element={
+          <>
+            {loading ? (
+              <div className="flex min-h-screen items-center justify-center bg-slate-50">
+                <div className="flex items-center gap-3 text-slate-500">
+                  <LoaderCircle size={22} className="animate-spin" />
+
+                  <span>Loading your family tree...</span>
+                </div>
+              </div>
+            ) : (
+              <div className="h-screen overflow-hidden bg-slate-50 text-slate-900">
+                {/* HEADER */}
+
+                <AppHeader
+                  handleAutoArrange={handleAutoArrange}
+                  setShowTreeInfo={setShowTreeInfo}
+                  handleExport={handleExport}
+                  selectedPerson={selectedPerson}
+                  nodes={nodes}
+                  setShowRelationshipModal={setShowRelationshipModal}
+                  setShowAddPerson={setShowAddPerson}
+                  handleLogout={handleLogout}
+                />
+
+                {/* WORKSPACE */}
+
+                <div className="relative h-[calc(100vh-4rem)] min-h-0">
+                  <FamilyTreeWorkspace
+                    nodes={nodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
+                    selectedPerson={selectedPerson}
+                    searchQuery={searchQuery}
+                    searchQueryValue={searchQuery}
+                    sidebarOpen={sidebarOpen}
+                    setSidebarOpen={setSidebarOpen}
+                    handleAutoArrange={handleAutoArrange}
+                    handleSelectPerson={handleSelectPerson}
+                    handlePaneClick={handlePaneClick}
+                    setReactFlowInstance={setReactFlowInstance}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    getConnectedPersonIds={getWorkspaceConnectedPersonIds}
+                    getRenderedEdge={getRenderedEdge}
+                    FamilySidebar={FamilySidebar}
+                    setSearchQuery={setSearchQuery}
+                    onAddPerson={() => setShowAddPerson(true)}
+                    onAddRelationship={() => {
+                      if (!selectedPerson) {
+                        alert("Select a family member first.");
+
+                        return;
+                      }
+
+                      if (nodes.length < 2) {
+                        alert("Add at least two family members first.");
+
+                        return;
+                      }
+
+                      setShowRelationshipModal(true);
+                    }}
+                  />
+
+                  {/* RIGHT DETAILS PANEL */}
+
+                  {selectedPerson && (
+                    <div className="absolute right-0 top-0 z-30 h-full">
+                      <PersonDetailsPanel
+                        person={selectedPerson}
+                        nodes={nodes}
+                        edges={edges}
+                        onClose={() => setSelectedPerson(null)}
+                        onEdit={(person) => {
+                          const actualPerson = nodes.find(
+                            (node) => node.id === person.id,
+                          );
+
+                          const personData =
+                            actualPerson?.data?.person || person;
+
+                          setEditingPerson(personData);
+
+                          setPersonName(personData.name);
+
+                          setPersonGender(personData.gender || "unknown");
+
+                          setShowEditPerson(true);
+                        }}
+                        onDelete={handleDeletePerson}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* ADD PERSON */}
+
+                <AddPersonModal
+                  open={showAddPerson}
+                  onClose={() => {
+                    setShowAddPerson(false);
+                  }}
+                  personName={personName}
+                  setPersonName={setPersonName}
+                  personGender={personGender}
+                  setPersonGender={setPersonGender}
+                  onSubmit={handleAddPerson}
+                  saving={saving}
+                />
+
+                {/* EDIT PERSON */}
+
+                <EditPersonModal
+                  open={showEditPerson}
+                  person={editingPerson}
+                  personName={personName}
+                  setPersonName={setPersonName}
+                  personGender={personGender}
+                  setPersonGender={setPersonGender}
+                  onClose={() => {
+                    setShowEditPerson(false);
+
+                    setEditingPerson(null);
+
+                    setPersonName("");
+
+                    setPersonGender("unknown");
+                  }}
+                  onSubmit={handleEditPerson}
+                  saving={saving}
+                />
+
+                {/* RELATIONSHIP */}
+
+                <RelationshipModal
+                  open={showRelationshipModal}
+                  onClose={() => setShowRelationshipModal(false)}
+                  people={nodes.map((node) => ({
+                    id: node.id,
+
+                    name: node.data.name,
+
+                    gender: node.data.gender,
+                  }))}
+                  selectedPerson={selectedPerson}
+                  existingRelationships={edges}
+                  onSave={handleCreateRelationship}
+                  saving={savingRelationship}
+                />
+
+                {/* TREE INFO */}
+
+                <TreeInfoModal
+                  open={showTreeInfo}
+                  onClose={() => setShowTreeInfo(false)}
+                  nodes={nodes}
+                  edges={edges}
+                />
+
+                {/* HELP */}
+
+                <HelpButton
+                  onClick={() => {
+                    alert(
+                      "Select a family member to view details. Use Add Person to create a member and Add Relationship to connect people.",
+                    );
+                  }}
+                />
+              </div>
+            )}
+          </>
+        }
       />
 
-      {/* ==================================================
-          BODY
-      ================================================== */}
+      {/* UNKNOWN */}
 
-      <div
-        className="
-          flex
-          h-[calc(100vh-4rem)]
-          min-h-0
-        "
-      >
-        {/* ==================================================
-            LEFT SIDEBAR
-        ================================================== */}
-
-        {sidebarOpen && (
-          <FamilySidebar
-            /*
-             * IMPORTANT:
-             * Pass FULL nodes here.
-             * FamilySidebar itself handles filtering.
-             */
-
-            nodes={nodes}
-            /*
-             * IMPORTANT:
-             * Your sidebar uses edges.map().
-             * This was the cause of your
-             * "Cannot read properties of undefined"
-             * error.
-             */
-
-            edges={edges}
-            selectedPerson={selectedPerson}
-            setSelectedPerson={handleSelectPerson}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            onAddPerson={() => setShowAddPerson(true)}
-            onAddRelationship={() => {
-              if (!selectedPerson) {
-                alert("Select a family member first.");
-
-                return;
-              }
-
-              if (nodes.length < 2) {
-                alert("Add at least two family members first.");
-
-                return;
-              }
-
-              setShowRelationshipModal(true);
-            }}
-          />
-        )}
-
-        {/* ==================================================
-            TREE CANVAS
-        ================================================== */}
-
-        <main className="relative min-w-0 flex-1">
-          {/* SIDEBAR TOGGLE */}
-
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((value) => !value)}
-            className="
-              absolute
-              left-3
-              top-3
-              z-30
-              rounded-xl
-              border
-              border-slate-200
-              bg-white
-              px-3
-              py-2
-              text-xs
-              font-semibold
-              text-slate-600
-              shadow-sm
-              transition
-              hover:bg-slate-50
-            "
-          >
-            {sidebarOpen ? "Hide" : "Show"}
-          </button>
-
-          <ReactFlow
-            nodes={displayedNodes}
-            edges={displayedEdges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            onNodeClick={(event, node) => {
-              event.preventDefault();
-              event.stopPropagation();
-
-              handleSelectPerson(node);
-            }}
-            onPaneClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-
-              setSelectedPerson(null);
-            }}
-            onInit={setReactFlowInstance}
-            fitView
-            fitViewOptions={{
-              padding: 0.15,
-            }}
-            minZoom={0.2}
-            maxZoom={1.5}
-            proOptions={{
-              hideAttribution: false,
-            }}
-          >
-            <Background />
-
-            <Controls />
-
-            <MiniMap
-              nodeColor={(node) => {
-                if (node.data?.gender === "female") {
-                  return "#f9a8d4";
-                }
-
-                if (node.data?.gender === "male") {
-                  return "#93c5fd";
-                }
-
-                return "#cbd5e1";
-              }}
-            />
-          </ReactFlow>
-        </main>
-
-        {/* ==================================================
-            RIGHT DETAILS PANEL
-        ================================================== */}
-
-        {selectedPerson && (
-          <PersonDetailsPanel
-            person={selectedPerson}
-            nodes={nodes}
-            edges={edges}
-            onClose={() => setSelectedPerson(null)}
-            onEdit={(person) => {
-              const actualPerson = nodes.find((node) => node.id === person.id);
-
-              const personData = actualPerson?.data?.person || person;
-
-              setEditingPerson(personData);
-
-              setPersonName(personData.name);
-
-              setPersonGender(personData.gender || "unknown");
-
-              setShowEditPerson(true);
-            }}
-            onDelete={handleDeletePerson}
-          />
-        )}
-      </div>
-
-      {/* ====================================================
-          ADD PERSON MODAL
-      ==================================================== */}
-
-      <AddPersonModal
-        open={showAddPerson}
-        onClose={() => {
-          setShowAddPerson(false);
-        }}
-        personName={personName}
-        setPersonName={setPersonName}
-        personGender={personGender}
-        setPersonGender={setPersonGender}
-        onSubmit={handleAddPerson}
-        saving={saving}
-      />
-
-      {/* ====================================================
-          EDIT PERSON MODAL
-      ==================================================== */}
-
-      <EditPersonModal
-        open={showEditPerson}
-        person={editingPerson}
-        personName={personName}
-        setPersonName={setPersonName}
-        personGender={personGender}
-        setPersonGender={setPersonGender}
-        onClose={() => {
-          setShowEditPerson(false);
-
-          setEditingPerson(null);
-
-          setPersonName("");
-
-          setPersonGender("unknown");
-        }}
-        onSubmit={handleEditPerson}
-        saving={saving}
-      />
-
-      {/* ====================================================
-          RELATIONSHIP MODAL
-      ==================================================== */}
-
-      <RelationshipModal
-        open={showRelationshipModal}
-        onClose={() => setShowRelationshipModal(false)}
-        people={nodes.map((node) => ({
-          id: node.id,
-
-          name: node.data.name,
-
-          gender: node.data.gender,
-        }))}
-        selectedPerson={selectedPerson}
-        existingRelationships={edges}
-        onSave={handleCreateRelationship}
-        saving={savingRelationship}
-      />
-
-      {/* ====================================================
-          TREE INFO MODAL
-      ==================================================== */}
-
-      <TreeInfoModal
-        open={showTreeInfo}
-        onClose={() => setShowTreeInfo(false)}
-        nodes={nodes}
-        edges={edges}
-      />
-
-      {/* ====================================================
-          HELP
-      ==================================================== */}
-
-      <HelpButton
-        onClick={() => {
-          alert(
-            "Select a family member to view details. Use Add Person to create a member and Add Relationship to connect people.",
-          );
-        }}
-      />
-    </div>
+      <Route path="*" element={<Navigate to="/tree" replace />} />
+    </Routes>
   );
 }
 

@@ -2,6 +2,7 @@ import {
   ArrowRight,
   GitBranch,
   Heart,
+  Mail,
   ShieldCheck,
   Sparkles,
   TreePine,
@@ -69,7 +70,7 @@ function LandingPage({ onLogin, onRegister }) {
         <section className="relative overflow-hidden px-5 pb-20 pt-16 sm:px-8 sm:pt-24 lg:pb-28 lg:pt-28">
           {/* BACKGROUND DECORATION */}
 
-          <div className="pointer-events-none absolute left-1/2 top-0 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-emerald-200/30 blur-3xl" />
+          <div className="pointer-events-none absolute left-1/2 top-0 h-125 w-175 -translate-x-1/2 rounded-full bg-emerald-200/30 blur-3xl" />
 
           <div className="pointer-events-none absolute right-0 top-20 h-72 w-72 rounded-full bg-blue-200/30 blur-3xl" />
 
@@ -338,53 +339,83 @@ function LandingPage({ onLogin, onRegister }) {
                   {/* CREATOR LINKS */}
 
                   <div className="mt-6 flex flex-wrap justify-center gap-3 sm:justify-start">
+                    {/* PORTFOLIO */}
+
                     <a
                       href="https://ajithmalleportfolio.vercel.app/"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="
-                inline-flex
-                items-center
-                gap-2
-                rounded-xl
-                border
-                border-slate-200
-                bg-white
-                px-4
-                py-2.5
-                text-xs
-                font-semibold
-                text-slate-700
-                transition
-                hover:border-slate-300
-                hover:bg-slate-50
-              "
+      inline-flex
+      items-center
+      gap-2
+      rounded-xl
+      border
+      border-slate-200
+      bg-white
+      px-4
+      py-2.5
+      text-xs
+      font-semibold
+      text-slate-700
+      transition
+      hover:border-slate-300
+      hover:bg-slate-50
+    "
                     >
                       <UserRound size={15} />
                       Ajith Malle
                     </a>
+
+                    {/* GITHUB */}
 
                     <a
                       href="https://github.com/lisajith/familytree"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="
-                inline-flex
-                items-center
-                gap-2
-                rounded-xl
-                bg-slate-900
-                px-4
-                py-2.5
-                text-xs
-                font-semibold
-                text-white
-                transition
-                hover:bg-slate-800
-              "
+      inline-flex
+      items-center
+      gap-2
+      rounded-xl
+      bg-slate-900
+      px-4
+      py-2.5
+      text-xs
+      font-semibold
+      text-white
+      transition
+      hover:bg-slate-800
+    "
                     >
                       <GitBranch size={15} />
                       View on GitHub
+                    </a>
+
+                    {/* CONTACT */}
+
+                    <a
+                      href="mailto:ajithkumarmalle@gmail.com"
+                      className="
+      inline-flex
+      items-center
+      gap-2
+      rounded-xl
+      border
+      border-emerald-200
+      bg-emerald-50
+      px-4
+      py-2.5
+      text-xs
+      font-semibold
+      text-emerald-700
+      transition
+      hover:border-emerald-300
+      hover:bg-emerald-100
+    "
+                    >
+                      <Mail size={15} />
+                      Contact Me
                     </a>
                   </div>
                 </div>
@@ -398,7 +429,7 @@ function LandingPage({ onLogin, onRegister }) {
         ================================================== */}
 
         <section className="px-5 pb-20 sm:px-8 lg:pb-28">
-          <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 px-6 py-14 text-center text-white shadow-2xl sm:px-12">
+          <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-linear-to-br from-slate-900 via-slate-800 to-emerald-950 px-6 py-14 text-center text-white shadow-2xl sm:px-12">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10">
               <Heart size={25} />
             </div>
@@ -468,7 +499,7 @@ function DemoTree({ large = false }) {
             </p>
 
             <h3 className="mt-1 text-lg font-bold text-slate-900">
-              The Anderson Family
+              Krishna Family
             </h3>
           </div>
 
@@ -481,7 +512,7 @@ function DemoTree({ large = false }) {
 
         <div className="overflow-x-auto pb-2">
           <div
-            className={`mx-auto min-w-[600px] ${
+            className={`mx-auto min-w-150 ${
               large ? "max-w-4xl" : "max-w-xl"
             }`}
           >
